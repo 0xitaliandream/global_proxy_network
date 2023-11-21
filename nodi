@@ -1,0 +1,25 @@
+<mxfile host="app.diagrams.net" modified="2023-11-21T14:27:17.580Z" agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36" etag="rSlY4rFHI-2LV3l5TPbg" version="22.1.3" type="device">
+  <diagram name="Pagina-1" id="ldTuChbfH16TVG8j0A5C">
+    <mxGraphModel dx="1490" dy="829" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="GASfutEjgcatcAm24AgC-1" value="SITO&lt;br&gt;WEB&lt;br&gt;(DOVE ACQUISTARE)" style="whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="110" y="70" width="150" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="GASfutEjgcatcAm24AgC-2" value="PRODUCER PER PC" style="whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="320" y="80" width="125" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="GASfutEjgcatcAm24AgC-3" value="PRODUCER PER&lt;br&gt;SMARTPHONE" style="whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="490" y="80" width="125" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="GASfutEjgcatcAm24AgC-4" value="PRODUCER USB" style="whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="320" y="260" width="125" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="GASfutEjgcatcAm24AgC-6" value="RELAY CLOUD" style="whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="491.88" y="260" width="121.25" height="121.25" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
