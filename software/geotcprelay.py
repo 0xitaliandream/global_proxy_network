@@ -107,12 +107,12 @@ class GeoTcpRelay:
                             device_a = next((a for a, b in self.client_producer_mappings.items() if b == client_socket), None)
                             if device_a:
                                 device_a.sendall(data)
-                                logging.info("Data relayed from Producer to Client")
+                                logging.info(f"Data {data} relayed from Producer to Client")
                         else:
                             device_b = self.client_producer_mappings.get(client_socket)
                             if device_b:
                                 device_b.sendall(data)
-                                logging.info("Data relayed from CLient to Producer")
+                                logging.info(f"Data {data} relayed from CLient to Producer")
                 except socket.error as e:
                     logging.error("Socket error: %s", e)
                     break

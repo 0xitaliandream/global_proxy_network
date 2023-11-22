@@ -3,6 +3,7 @@ import threading
 import random
 import logging
 import struct
+import select
 from socks5 import Socks5Server, Socks5Client
 from authservice import AuthService
 
@@ -73,89 +74,44 @@ class ClientGateway:
             return
         
         relay_socks5client = Socks5Client(relay_socket)
-            
-        # 1. Apri handshake con il dispositivo B
 
-        relay_socks5client.auth_handshake()
+        relay_socks5client.send_version_nmethods_methods()
+        relay_socks5client.get_version_method_response()
+        relay_socks5client.send_auth("gateway","gateway")
+        relay_socks5client.get_auth_response()
 
-        # 2. Invia i dati di autenticazione al dispositivo B
-        # 3. Inoltra i dati di request del dispositivo A al dispositivo B
-        # 4. Inoltra i dati di response del dispositivo B al dispositivo A    
-        
-
-        self.receive_data(client_socket, is_device_b=False)
+        self.exchange_data(client_socket,relay_socket)
 
     def open_socket_relay_connection(self, selected_country_relay):
         relay_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        relay_socket.connect((selected_country_relay, 30000))
+        relay_socket.connect((selected_country_relay, 60000))
         return relay_socket
 
     def select_country_relay(self):
         return "it.skynetproxy.com"
 
-    def reassign_device_a(self, old_device_b):
-        with self.lock:
-            for device_a, device_b in self.client_producer_mappings.items():
-                if device_b == old_device_b:
-                    new_device_b = self.select_device_b_for_a()
-                    if new_device_b:
-                        self.client_producer_mappings[device_a] = new_device_b
-                        logging.info("Device A with socket %s reassigned to new device B with socket %s", device_a, new_device_b)
-                    else:
-                        logging.warning("No device B available to reassign. Closing connection to device A with socket: %s", device_a)
-                        device_a.close()
-                        del self.client_producer_mappings[device_a]
-
-    def receive_data(self, client_socket, is_device_b):
+    def exchange_data(self, client_socket, relay_socket):
         try:
             while True:
-                try:
+                # wait until client or remote is available for read
+                r, w, e = select.select([client_socket, relay_socket], [], [], 0.5)
+
+                if client_socket in r:
                     data = client_socket.recv(1024)
-                    if not data:
+                    if relay_socket.send(data) <= 0:
                         break
 
-                    with self.lock:
-                        if is_device_b:
-                            device_a = next((a for a, b in self.client_producer_mappings.items() if b == client_socket), None)
-                            if device_a:
-                                device_a.sendall(data)
-                                logging.info("Data relayed from device B to device A")
-                        else:
-                            device_b = self.client_producer_mappings.get(client_socket)
-                            if device_b:
-                                device_b.sendall(data)
-                                logging.info("Data relayed from device A to device B")
-                except socket.error as e:
-                    logging.error("Socket error: %s", e)
-                    break
+                if relay_socket in r:
+                    data = relay_socket.recv(1024)
+                    if client_socket.send(data) <= 0:
+                        break
         finally:
-            if is_device_b:
-                self.notify_disconnection_to_device_a(client_socket)
-            else:
-                if client_socket in self.client_producer_mappings:
-                    with self.lock:
-                        del self.client_producer_mappings[client_socket]
-                    logging.info("Device A disconnected and removed from mappings")
+            del self.client_socks5server_mappings[client_socket]
             client_socket.close()
+            relay_socket.close()
 
     def notify_disconnection_to_device_a(self, disconnected_device_b):
-            with self.lock:
-                # Rimuovi prima il dispositivo B disconnesso
-                del self.producer_connections[disconnected_device_b]
-                logging.info("Device B disconnected and removed from connections")
-
-                # Ora riassegna i dispositivi A, se possibile
-                for device_a, device_b in list(self.client_producer_mappings.items()):
-                    if device_b == disconnected_device_b:
-                        new_device_b = self.select_device_b_for_a()
-                        if new_device_b and new_device_b != disconnected_device_b:
-                            self.client_producer_mappings[device_a] = new_device_b
-                            logging.info("Device B disconnected. Device A reassigned to new Device B with socket: %s", new_device_b)
-                            # Qui puoi inviare un messaggio al dispositivo A per informarlo del cambio, se necessario
-                        else:
-                            logging.warning("No suitable device B available to reassign. Closing connection to device A with socket: %s", device_a)
-                            device_a.close()
-                            del self.client_producer_mappings[device_a]
+            pass
 
 if __name__ == "__main__":
     server = ClientGateway()

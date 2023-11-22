@@ -1,15 +1,85 @@
 import struct
 import socket
 import select
+import io
 
 class Socks5Client:
     def __init__(self, sock):
         self.sock = sock
         self.auth = False
 
-    def auth_handshake(self):
 
-        pass
+
+    def send_version_nmethods_methods(self):
+        packet = struct.pack("!BBB", 5, 1, 2)
+        self.sock.sendall(packet)
+
+    def get_version_method_response(self):
+
+        header = self.sock.recv(2)
+        version, method = struct.unpack("!BB", header)
+        if version != 5:
+            # close connection
+            return False
+
+        if method != 2:
+            # close connection
+            return False
+
+        return True
+    
+    def send_auth(self,username,password):
+        packet = struct.pack("!BB", 1, len(username))
+        self.sock.sendall(packet)
+        self.sock.sendall(username.encode('utf-8'))
+        packet = struct.pack("!B", len(password))
+        self.sock.sendall(packet)
+        self.sock.sendall(password.encode('utf-8'))
+
+
+    def get_auth_response(self):
+            
+            header = self.sock.recv(2)
+            version, status = struct.unpack("!BB", header)
+            if version != 1:
+                # close connection
+                return False
+    
+            if status != 0:
+                # close connection
+                return False
+    
+            return True
+    
+
+    def send_request(self, cmd, address_type, address, port):
+        packet = struct.pack("!BBBB", 5, cmd, 0, address_type)
+        self.sock.sendall(packet)
+        if address_type == 1:
+            packet = struct.pack("!I", socket.inet_aton(address))
+            self.sock.sendall(packet)
+        elif address_type == 3:
+            packet = struct.pack("!B", len(address))
+            self.sock.sendall(packet)
+            self.sock.sendall(address.encode('utf-8'))
+        packet = struct.pack("!H", port)
+        self.sock.sendall(packet)
+
+
+
+    def get_response(self):
+        header = self.sock.recv(4)
+        version, status, _, address_type = struct.unpack("!BBBB", header)
+        if version != 5:
+            # close connection
+            return False , None , None
+        
+        if status != 0:
+            # close connection
+            return False , None , None
+
+        if address_type == 1:
+            pass
 
 
 
@@ -57,6 +127,7 @@ class Socks5Server:
         return remote
 
     def get_request(self):
+
         version, cmd, _, address_type = struct.unpack("!BBBB", self.sock.recv(4))
         if version != 5:
             # close connection
