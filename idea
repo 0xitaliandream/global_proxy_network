@@ -1,9 +1,12 @@
-<mxfile host="app.diagrams.net" modified="2023-11-22T01:15:26.908Z" agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36" etag="D-QnMMS2dOfS1qr09w3D" version="22.1.3" type="device">
+<mxfile host="app.diagrams.net" modified="2023-11-22T10:22:55.833Z" agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36" etag="0OcFbYmLdxn25ENeE_AT" version="22.1.3" type="device">
   <diagram name="Pagina-1" id="8WQt9FxJZHtGc7BdEHK4">
     <mxGraphModel dx="2956" dy="1184" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
+        <mxCell id="hzgG48gB2aCOpkfuI_Jx-35" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="-300" y="20" width="820" height="660" as="geometry" />
+        </mxCell>
         <mxCell id="hyAIO_Cw3E_pS2LAiVSu-5" value="" style="whiteSpace=wrap;html=1;aspect=fixed;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
           <mxGeometry x="-720" y="270" width="240" height="240" as="geometry" />
         </mxCell>
@@ -121,8 +124,8 @@
         <mxCell id="hzgG48gB2aCOpkfuI_Jx-27" value="" style="image;aspect=fixed;perimeter=ellipsePerimeter;html=1;align=center;shadow=0;dashed=0;spacingTop=3;image=img/lib/active_directory/generic_server.svg;" vertex="1" parent="1">
           <mxGeometry x="385" y="116" width="56" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="hzgG48gB2aCOpkfuI_Jx-28" value="COUNTRY&lt;br&gt;GATEWAY" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
-          <mxGeometry x="373" y="69" width="80" height="40" as="geometry" />
+        <mxCell id="hzgG48gB2aCOpkfuI_Jx-28" value="PRODUCER&lt;br&gt;GATEWAY" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="368" y="69" width="90" height="40" as="geometry" />
         </mxCell>
         <mxCell id="hzgG48gB2aCOpkfuI_Jx-29" value="" style="endArrow=classic;startArrow=classic;html=1;rounded=0;" edge="1" parent="1">
           <mxGeometry width="50" height="50" relative="1" as="geometry">
@@ -146,6 +149,12 @@
               <mxPoint x="330" y="30" />
             </Array>
           </mxGeometry>
+        </mxCell>
+        <mxCell id="hzgG48gB2aCOpkfuI_Jx-36" value="I RELAY NON SONO RAGGIUNGIBILI DA INTERNET&lt;br&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="50" y="690" width="310" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="hzgG48gB2aCOpkfuI_Jx-37" value="SOLO IL CLIENT GATEWAY E IL PRODUCER GATEWAY SONO&amp;nbsp;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="-70" y="768" width="380" height="30" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>

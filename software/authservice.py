@@ -8,3 +8,6 @@ class AuthService:
     
     def login_client(self, username, password):
         return True
+    
+    def login_producer(self, api_key):
+        return True
