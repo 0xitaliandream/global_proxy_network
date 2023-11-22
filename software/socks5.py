@@ -90,22 +90,22 @@ class Socks5Server:
         self.sock = sock
         self.auth = False
 
-    def exchange_data(self,remote):
-
+    def exchange_data(self, remote):
         while True:
-
             # wait until client or remote is available for read
-            r, w, e = select.select([self.sock, remote], [], [], 0.5)
+            read_sockets, _, _ = select.select([self.sock, remote], [], [], 0.1)
 
-            if self.sock in r:
-                data = self.sock.recv(1024)
-                if remote.send(data) <= 0:
-                    break
-
-            if remote in r:
-                data = remote.recv(1024)
-                if self.sock.send(data) <= 0:
-                    break
+            for socks in read_sockets:
+                if socks == remote:
+                    data = remote.recv(4096)
+                    if len(data) == 0:  # Verifica se la connessione è stata chiusa
+                        return
+                    self.sock.sendall(data)
+                else:
+                    data = self.sock.recv(4096)
+                    if len(data) == 0:  # Verifica se la connessione è stata chiusa
+                        return
+                    remote.sendall(data)
 
     def send_reply(self, cmd, address, port):
 

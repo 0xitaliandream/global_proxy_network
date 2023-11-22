@@ -29,58 +29,100 @@ class ClientGateway:
 
         while True:
             client_sock, addr = server_socket.accept()
+            client_sock.settimeout(5)
             logging.info("Accepted connection from %s:%d", *addr)
             threading.Thread(target=self.handle_client, args=(client_sock,)).start()
+
+    def unregister_client(self, client_socket,close_socket=False):
+        with self.lock:
+            if client_socket in self.client_socks5server_mappings:
+                del self.client_socks5server_mappings[client_socket]
+                logging.info("Client with socket %s unregistered", client_socket)
+        
+        if close_socket:
+            client_socket.close()
+
+    def destroy_relay_socket(self, relay_socket):
+        try:
+            relay_socket.close()
+        except Exception as e:
+            pass
+
 
     def handle_client(self, client_socket):
 
         socks5server_for_client = Socks5Server(client_socket)
 
-        status, username, password = socks5server_for_client.auth_handshake()
-        if not status:
+        try:
+
+            status, username, password = socks5server_for_client.auth_handshake()
+            if not status:
+                raise Exception("Invalid authentication handshake")
+        
+            status = AuthService().login_client(username, password)
+            if not status:
+                raise Exception("Invalid username or password")
+            
+            logging.info("Client authenticated with username: %s", username)
+
+            socks5server_for_client.complete_auth_handshake()
+
+            self.client_socks5server_mappings[client_socket] = socks5server_for_client
+
+        except Exception as e:
             logging.warning("Closing connection to Client with socket: %s", client_socket)
-            del socks5server_for_client
-            client_socket.close()
+            logging.warning(e)
+            self.unregister_client(client_socket,close_socket=True)
             return
         
-        status = AuthService().login_client(username, password)
-        if not status:
-            logging.warning("Invalid credentials. Closing connection to Client with socket: %s", client_socket)
-            del socks5server_for_client
-            client_socket.close()
+
+        try:
+
+            selected_country_relay = self.select_country_relay()
+            if selected_country_relay:
+                logging.info("Client connected and mapped to Country Relay: %s", selected_country_relay)
+            else:
+                logging.warning("No Country Relay available. Closing connection to Client with socket: %s", client_socket)
+
+        except Exception as e:
+            logging.warning("Closing connection to Client with socket: %s", client_socket)
+            logging.warning(e)
+            self.unregister_client(client_socket,close_socket=True)
             return
         
-        logging.info("Client authenticated with username: %s", username)
 
-        socks5server_for_client.complete_auth_handshake()
+        
+        try:
 
-        self.client_socks5server_mappings[client_socket] = socks5server_for_client
+            logging.info("Opening connection to Country Relay: %s", selected_country_relay)
+            
 
-        selected_country_relay = self.select_country_relay()
-        if selected_country_relay:
-            logging.info("Client connected and mapped to Country Relay: %s", selected_country_relay)
-        else:
-            logging.warning("No Country Relay available. Closing connection to Client with socket: %s", client_socket)
-            client_socket.close()
+            relay_socket = self.open_socket_relay_connection(selected_country_relay)
+            if not relay_socket:
+                raise Exception("Error opening connection to Country Relay")
+            
+            relay_socks5client = Socks5Client(relay_socket)
+
+            relay_socks5client.send_version_nmethods_methods()
+
+            status = relay_socks5client.get_version_method_response()
+            if not status:
+                raise Exception("Invalid version/method response")
+            
+            relay_socks5client.send_auth("gateway","gateway")
+            status = relay_socks5client.get_auth_response()
+            if not status:
+                raise Exception("Invalid authentication response")
+
+
+        except Exception as e:
+            logging.warning("Closing connection to Client with socket: %s", client_socket)
+            logging.warning(e)
+            self.unregister_client(client_socket,close_socket=True)
+            self.destroy_relay_socket(relay_socket)
             return
-        
-        logging.info("Opening connection to Country Relay: %s", selected_country_relay)
-        
 
-        relay_socket = self.open_socket_relay_connection(selected_country_relay)
-        if not relay_socket:
-            logging.warning("No Country Relay available. Closing connection to Client with socket: %s", client_socket)
-            client_socket.close()
-            return
-        
-        relay_socks5client = Socks5Client(relay_socket)
-
-        relay_socks5client.send_version_nmethods_methods()
-        relay_socks5client.get_version_method_response()
-        relay_socks5client.send_auth("gateway","gateway")
-        relay_socks5client.get_auth_response()
-
-        self.exchange_data(client_socket,relay_socket)
+        socks5server_for_client.exchange_data(relay_socket)
 
     def open_socket_relay_connection(self, selected_country_relay):
         relay_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -89,26 +131,6 @@ class ClientGateway:
 
     def select_country_relay(self):
         return "it.skynetproxy.com"
-
-    def exchange_data(self, client_socket, relay_socket):
-        try:
-            while True:
-                # wait until client or remote is available for read
-                r, w, e = select.select([client_socket, relay_socket], [], [], 0.5)
-
-                if client_socket in r:
-                    data = client_socket.recv(1024)
-                    if relay_socket.send(data) <= 0:
-                        break
-
-                if relay_socket in r:
-                    data = relay_socket.recv(1024)
-                    if client_socket.send(data) <= 0:
-                        break
-        finally:
-            del self.client_socks5server_mappings[client_socket]
-            client_socket.close()
-            relay_socket.close()
 
     def notify_disconnection_to_device_a(self, disconnected_device_b):
             pass
