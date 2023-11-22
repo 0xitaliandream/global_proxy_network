@@ -2,6 +2,33 @@ import struct
 import socket
 import select
 import io
+import threading
+
+class DataExchanger:
+
+    def __init__(self, dst, src):
+        self.dst = dst
+        self.src = src
+
+    def exchange_data(self):
+        while True:
+            # wait until client or remote is available for read
+            read_sockets, _, _ = select.select([self.dst, self.src], [], [], 0.1)
+
+            for socks in read_sockets:
+                if socks == self.dst:
+                    data = self.dst.recv(4096)
+                    if len(data) == 0:  # Verifica se la connessione è stata chiusa
+                        return
+                    self.src.sendall(data)
+                elif socks == self.src:
+                    data = self.src.recv(4096)
+                    if len(data) == 0:  # Verifica se la connessione è stata chiusa
+                        return
+                    self.dst.sendall(data)
+        
+        
+
 
 class Socks5Client:
     def __init__(self, sock):
@@ -101,7 +128,7 @@ class Socks5Server:
                     if len(data) == 0:  # Verifica se la connessione è stata chiusa
                         return
                     self.sock.sendall(data)
-                else:
+                elif socks == self.sock:
                     data = self.sock.recv(4096)
                     if len(data) == 0:  # Verifica se la connessione è stata chiusa
                         return

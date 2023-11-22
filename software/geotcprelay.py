@@ -3,8 +3,9 @@ import threading
 import random
 import logging
 import struct
-from socks5 import Socks5Server, Socks5Client
+from socks5 import Socks5Server, Socks5Client, DataExchanger
 from authservice import AuthService
+import select
 
 # Configurazione del logging
 logging.basicConfig(filename='geotcprelay.log', level=logging.INFO, 
@@ -35,44 +36,75 @@ class GeoTcpRelay:
                 threading.Thread(target=self.handle_producer, args=(client_sock,)).start()
             else:
                 threading.Thread(target=self.handle_client, args=(client_sock,)).start()
-
-    def handle_producer(self, client_socket):
-
-        packed_data = client_socket.recv(128)  # Ricevi il messaggio di handshake
-        api_key_length = struct.unpack('!I', packed_data[:4])[0]
-        api_key = struct.unpack(f"!{api_key_length}s", packed_data[4:])[0].decode('utf-8')
-
-
-        status = AuthService().login_producer(api_key)
-        if not status:
-            logging.warning("Invalid API key. Closing connection to Producer with socket: %s", client_socket)
-            packet = struct.pack("!B", 0)  # Invia un messaggio di errore al dispositivo B
-            client_socket.sendall(packet)
-            client_socket.close()
-            return
         
-        packet = struct.pack("!B", 1)
-        client_socket.sendall(packet)
-            
-
+    def unregister_producer(self, producer_socket, close_socket=False):
         with self.lock:
-            self.producers.append(client_socket)
-            logging.info("Producer connected with socket: %s", client_socket)
+            if producer_socket in self.producers:
+                self.producers.remove(producer_socket)
+                logging.info("Producer with socket %s unregistered", producer_socket)
+        
+        if close_socket:
+            producer_socket.close()
+            logging.info("Connection closed with Producer with socket: %s", producer_socket)
 
-        self.receive_data(client_socket, is_device_b=True)
+    def unregister_client(self, client_socket,close_socket=False):
+        with self.lock:
+            if client_socket in self.client_producer_mappings:
+                del self.client_producer_mappings[client_socket]
+                logging.info("Client with socket %s unregistered", client_socket)
+        
+        if close_socket:
+            client_socket.close()
+            logging.info("Connection closed with Client with socket: %s", client_socket)
+
+
+    def handle_producer(self, producer_socket):
+
+        try:
+
+            packed_data = producer_socket.recv(128)  # Ricevi il messaggio di handshake
+            api_key_length = struct.unpack('!I', packed_data[:4])[0]
+            api_key = struct.unpack(f"!{api_key_length}s", packed_data[4:])[0].decode('utf-8')
+
+
+            status = AuthService().login_producer(api_key)
+            if not status:
+                packet = struct.pack("!B", 0)  # Invia un messaggio di errore al dispositivo B
+                producer_socket.sendall(packet)
+                raise Exception("Invalid authentication handshake")
+            
+            packet = struct.pack("!B", 1)
+            producer_socket.sendall(packet)
+
+            with self.lock:
+                self.producers.append(producer_socket)
+                logging.info("Producer connected with socket: %s", producer_socket)
+        
+        except Exception as e:
+            logging.error("Error during handshake with Producer: %s", e)
+            logging.warning(e)
+            self.unregister_producer(producer_socket, close_socket=True)
+            return
 
     def handle_client(self, client_socket):
-        with self.lock:
-            selected_producer = self.select_producer_for_client()
-            if selected_producer:
-                self.client_producer_mappings[client_socket] = selected_producer
-                logging.info("Client connected and mapped to Producer with socket: %s", selected_producer)
-            else:
-                logging.warning("No Producer available. Closing connection to Client with socket: %s", client_socket)
-                client_socket.close()
-                return
 
-        self.receive_data(client_socket, is_device_b=False)
+        try:
+
+            with self.lock:
+                selected_producer = self.select_producer_for_client()
+                if selected_producer:
+                    self.client_producer_mappings[client_socket] = selected_producer
+                    logging.info("Client connected and mapped to Producer with socket: %s", selected_producer)
+                else:
+                    raise Exception("No Producer available")
+        
+        except Exception as e:
+            logging.warning("Closing connection to Client with socket: %s", client_socket)
+            logging.warning(e)
+            self.unregister_client(client_socket,close_socket=True)
+            return
+
+        self.exchange_data(client_socket, self.client_producer_mappings[client_socket])
 
     def select_producer_for_client(self):
         random_producer = random.choice(self.producers) if len(self.producers) > 0 else None
@@ -81,59 +113,19 @@ class GeoTcpRelay:
             self.producers.remove(random_producer)
         return random_producer
 
-    def reassign_device_a(self, old_device_b):
-        with self.lock:
-            for device_a, device_b in self.client_producer_mappings.items():
-                if device_b == old_device_b:
-                    new_device_b = self.select_device_b_for_a()
-                    if new_device_b:
-                        self.client_producer_mappings[device_a] = new_device_b
-                        logging.info("Device A with socket %s reassigned to new device B with socket %s", device_a, new_device_b)
-                    else:
-                        logging.warning("No device B available to reassign. Closing connection to device A with socket: %s", device_a)
-                        device_a.close()
-                        del self.client_producer_mappings[device_a]
-
-    def receive_data(self, client_socket, is_device_b):
+    def exchange_data(self, client_socket, producer_socket):
         try:
-            while True:
-                try:
-                    data = client_socket.recv(1024)
-                    if not data:
-                        break
-
-                    with self.lock:
-                        if is_device_b:
-                            device_a = next((a for a, b in self.client_producer_mappings.items() if b == client_socket), None)
-                            if device_a:
-                                device_a.sendall(data)
-                                logging.info(f"Data {data} relayed from Producer to Client")
-                        else:
-                            device_b = self.client_producer_mappings.get(client_socket)
-                            if device_b:
-                                device_b.sendall(data)
-                                logging.info(f"Data {data} relayed from CLient to Producer")
-                except socket.error as e:
-                    logging.error("Socket error: %s", e)
-                    break
+            DataExchanger(client_socket, producer_socket).exchange_data()
+        except Exception as e:
+            logging.warning("Closing connection to Client with socket: %s", client_socket)
+            logging.warning(e)
         finally:
-            if is_device_b:
-                self.notify_disconnection_to_device_a(client_socket)
-            else:
-                if client_socket in self.client_producer_mappings:
-                    with self.lock:
-                        self.producers.append(self.client_producer_mappings[client_socket])
-                        del self.client_producer_mappings[client_socket]
-                    logging.info("Client disconnected and removed from mappings, Producer added back to pool")
-            client_socket.close()
 
-    def notify_disconnection_to_device_a(self, disconnected_device_b):
-            with self.lock:
-                logging.info("Producer disconnected and removed from connections")
-                for device_a, device_b in list(self.client_producer_mappings.items()):
-                    if device_b == disconnected_device_b:
-                        device_a.close()
-                        del self.client_producer_mappings[device_a]
+            self.unregister_client(client_socket, close_socket=True)
+            self.unregister_producer(producer_socket, close_socket=True)
+
+            
+            
 
 if __name__ == "__main__":
     server = GeoTcpRelay()

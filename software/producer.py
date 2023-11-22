@@ -5,7 +5,7 @@ import struct
 import select
 import sys
 import time
-from socks5 import Socks5Server
+from socks5 import Socks5Server,DataExchanger
 
 def setup_logger(name, log_file, level=logging.INFO):
     """Funzione per configurare e ottenere un logger."""
@@ -44,9 +44,9 @@ class Producer(threading.Thread):
 
                 self.logger.info("SocksProducer in attesa di dati da C")
 
-                self.socks5server.exchange_data(remote)
+                DataExchanger(self.sock, remote).exchange_data()
                 
-            except socket.error as e:
+            except Exception as e:
                 self.logger.error("Errore di connessione a C: %s", e)
             finally:
                 self.logger.info("SocksProducer disconnesso da C")

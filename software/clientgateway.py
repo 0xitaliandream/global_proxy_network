@@ -4,7 +4,7 @@ import random
 import logging
 import struct
 import select
-from socks5 import Socks5Server, Socks5Client
+from socks5 import Socks5Server, Socks5Client, DataExchanger
 from authservice import AuthService
 
 # Configurazione del logging
@@ -45,9 +45,11 @@ class ClientGateway:
     def destroy_relay_socket(self, relay_socket):
         try:
             relay_socket.close()
+            logging.info("Relay socket closed")
         except Exception as e:
+            logging.warning("Error closing relay socket: %s", e)
             pass
-
+        
 
     def handle_client(self, client_socket):
 
@@ -122,7 +124,12 @@ class ClientGateway:
             self.destroy_relay_socket(relay_socket)
             return
 
-        socks5server_for_client.exchange_data(relay_socket)
+        DataExchanger(client_socket, relay_socket).exchange_data()
+
+        self.unregister_client(client_socket,close_socket=True)
+        self.destroy_relay_socket(relay_socket)
+
+        logging.info("Client disconnected after data exchange")
 
     def open_socket_relay_connection(self, selected_country_relay):
         relay_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
