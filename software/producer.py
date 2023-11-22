@@ -3,6 +3,7 @@ import threading
 import logging
 import struct
 import select
+import sys
 
 def setup_logger(name, log_file, level=logging.INFO):
     """Funzione per configurare e ottenere un logger."""
@@ -16,42 +17,55 @@ def setup_logger(name, log_file, level=logging.INFO):
 
     return logger
 
-class SocksProducer(threading.Thread):
+class Socks5Producer(threading.Thread):
     def __init__(self, server_host, server_port, thread_id):
         super().__init__()
         self.server_host = server_host
         self.server_port = server_port
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.api_key = "API_KEY"
         self.logger = setup_logger(f'SocksProducer_{thread_id}', f'socks_producer_{thread_id}.log')
 
     def run(self):
-        try:
-            self.sock.connect((self.server_host, self.server_port))
-            self.logger.info("SocksProducer connesso a C")
-            self.handle_socks_data()
-        except socket.error as e:
-            self.logger.error("Errore di connessione a C: %s", e)
-        finally:
+        while True:
+            self.logger.info("Tentativo di connessione a C")
+            try:
+                self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.sock.connect((self.server_host, self.server_port))
+                self.logger.info("SocksProducer connesso a C")
+                self.relay_handshake()
+                self.handle_socks_data()
+            except socket.error as e:
+                self.logger.error("Errore di connessione a C: %s", e)
+            finally:
+                self.logger.info("SocksProducer disconnesso da C")
+                self.sock.close()
+
+    def relay_handshake(self):
+        packet = struct.pack(f"!I{len(self.api_key)}s", len(self.api_key), self.api_key.encode('utf-8'))
+        self.sock.sendall(packet)
+
+        packet_data = self.sock.recv(4)
+        status = struct.unpack("!B", packet_data)[0]
+
+        if status == 0:
+            self.logger.error("Errore di autenticazione")
             self.sock.close()
+            sys.exit(1)
+
 
     def handle_socks_data(self):
-        print("OK")
         header = self.sock.recv(2)
         version, nmethods = struct.unpack("!BB", header)
-
-        print(version, nmethods)
         assert version == 5
         assert nmethods > 0
 
-        print("OK")
         methods = self.get_available_methods(nmethods)
-        print(methods)
+
         # accept only USERNAME/PASSWORD auth
         if 2 not in set(methods):
             # close connection
             return
         
-        print("OK")
 
         self.sock.sendall(struct.pack("!BB", 5, 2))
 
@@ -99,7 +113,7 @@ class SocksProducer(threading.Thread):
 
         # establish data exchange
         if reply[1] == 0 and cmd == 1:
-            self.exchange_loop(self.sock, remote)
+            self.proxy_loop(self.sock, remote)
 
         return
 
@@ -128,28 +142,32 @@ class SocksProducer(threading.Thread):
         # failure, status != 0
         response = struct.pack("!BB", version, 0xFF)
         self.sock.sendall(response)
-        self.server.close_request(self.request)
         return False
     
     def generate_failed_reply(self, address_type, error_number):
         return struct.pack("!BBBBIH", 5, error_number, 0, address_type, 0, 0)
 
-    def exchange_loop(self, client, remote):
-
-        while True:
-
-            # wait until client or remote is available for read
-            r, w, e = select.select([client, remote], [], [])
-
-            if client in r:
-                data = client.recv(4096)
-                if remote.send(data) <= 0:
-                    break
-
-            if remote in r:
-                data = remote.recv(4096)
-                if client.send(data) <= 0:
-                    break
+    def proxy_loop(self, socket_src, socket_dst):
+        """ Wait for network activity """
+        while 1:
+            try:
+                print("Waiting for network activity")
+                reader, _, _ = select.select([socket_src, socket_dst], [], [], 1)
+            except select.error as err:
+                return
+            if not reader:
+                break
+            try:
+                for sock in reader:
+                    data = sock.recv(1024)
+                    if not data:
+                        return
+                    if sock is socket_dst:
+                        socket_src.send(data)
+                    else:
+                        socket_dst.send(data)
+            except socket.error as err:
+                return
 
 class ConnectionPool:
     def __init__(self, server_host, server_port, pool_size):
@@ -161,7 +179,7 @@ class ConnectionPool:
     def start(self):
         self.logger.info("Avvio della Connection Pool")
         for i in range(self.pool_size):
-            producer = SocksProducer(self.server_host, self.server_port, i)
+            producer = Socks5Producer(self.server_host, self.server_port, i)
             producer.start()
             self.logger.info(f"SocksProducer {i} avviato")
 

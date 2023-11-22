@@ -1,0 +1,1 @@
+# in base alla geolocalizzazione dell'utente, ip analysis ecc, si decide a quale server far iscrivere il producer
